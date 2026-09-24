@@ -1,7 +1,7 @@
 const express = require('express')
 const router = express.Router()
 const { getVocab, setVocab, deleteVocab, registrarIntento } = require('../controllers/vocabController')
-const { protect } = require('../middleware/authMiddleware')
+const { protect } = require('../middlewares/auth')
 
 // Rutas básicas (Obtener y Crear)
 router.route('/').get(protect, getVocab).post(protect, setVocab)
