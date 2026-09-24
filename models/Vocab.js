@@ -18,8 +18,17 @@ const vocabSchema = new mongoose.Schema({
   },
   user: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User', // Esto crea la relación con el modelo User
+    ref: 'User', 
     required: true
+  },
+  // NUEVO: Variables para el algoritmo de aprendizaje
+  aciertos: {
+    type: Number,
+    default: 0
+  },
+  fallos: {
+    type: Number,
+    default: 0
   }
 }, {
   timestamps: true

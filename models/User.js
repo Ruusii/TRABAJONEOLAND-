@@ -3,14 +3,12 @@ const mongoose = require('mongoose');
 const userSchema = new mongoose.Schema({
   name: {
     type: String,
-    required: true,
-    trim: true
+    required: true
   },
   email: {
     type: String,
     required: true,
-    unique: true,
-    trim: true
+    unique: true
   },
   password: {
     type: String,
@@ -18,11 +16,19 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['user', 'admin'],
-    default: 'user' 
+    default: 'user'
+  },
+  // NUEVO: Sistema de gamificación y constancia
+  rachaDias: {
+    type: Number,
+    default: 0
+  },
+  ultimaConexion: {
+    type: Date,
+    default: null
   }
-}, {
-  timestamps: true // Añade automáticamente fecha de creación y actualización
+}, { 
+  timestamps: true 
 });
 
 module.exports = mongoose.model('User', userSchema);
