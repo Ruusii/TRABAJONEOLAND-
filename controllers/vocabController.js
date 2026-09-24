@@ -1,68 +1,98 @@
-const Vocab = require('../models/Vocab');
+const Vocab = require('../models/Vocab')
 
-// Añadir una nueva palabra enlazada al usuario
-const createVocab = async (req, res) => {
+// @desc    Obtener vocabulario del usuario
+// @route   GET /api/vocab
+// @access  Privado
+const getVocab = async (req, res) => {
   try {
-    const { norwegian, spanish, category } = req.body;
-    
-    // Añadimos el req.user.id que nos pasa el middleware
-    const newWord = new Vocab({ 
-      norwegian, 
-      spanish, 
-      category,
-      user: req.user.id 
-    });
-    
-    await newWord.save();
-    res.status(201).json({ message: 'Palabra añadida con éxito', word: newWord });
+    const vocabulario = await Vocab.find({ user: req.user.id })
+    res.status(200).json(vocabulario)
   } catch (error) {
-    res.status(500).json({ message: 'Error al añadir la palabra', error: error.message });
+    res.status(500).json({ message: 'Error al obtener el vocabulario' })
   }
-};
+}
 
-// Obtener solo el vocabulario del usuario logueado
-const getVocabs = async (req, res) => {
+// @desc    Añadir nueva palabra
+// @route   POST /api/vocab
+// @access  Privado
+const setVocab = async (req, res) => {
   try {
-    // Filtramos para que busque solo las palabras de este usuario
-    const words = await Vocab.find({ user: req.user.id });
-    res.status(200).json(words);
-  } catch (error) {
-    res.status(500).json({ message: 'Error al obtener el vocabulario', error: error.message });
-  }
-};
-
-// Modificar una palabra existente (asegurando que sea del usuario)
-const updateVocab = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const updatedWord = await Vocab.findOneAndUpdate(
-      { _id: id, user: req.user.id }, // Busca por ID de palabra Y de usuario
-      req.body, 
-      { new: true }
-    );
-    
-    if (!updatedWord) {
-      return res.status(404).json({ message: 'Palabra no encontrada o no autorizada' });
+    if (!req.body.norwegian || !req.body.spanish) {
+      return res.status(400).json({ message: 'Por favor, añade norwegian y spanish' })
     }
-    res.status(200).json({ message: 'Palabra actualizada', word: updatedWord });
-  } catch (error) {
-    res.status(500).json({ message: 'Error al actualizar', error: error.message });
-  }
-};
 
-// Borrar una palabra (asegurando que sea del usuario)
+    const palabra = await Vocab.create({
+      norwegian: req.body.norwegian,
+      spanish: req.body.spanish,
+      category: req.body.category || 'General',
+      user: req.user.id
+    })
+
+    res.status(200).json(palabra)
+  } catch (error) {
+    res.status(500).json({ message: 'Error al crear la palabra', error: error.message })
+  }
+}
+
+// @desc    Eliminar palabra
+// @route   DELETE /api/vocab/:id
+// @access  Privado
 const deleteVocab = async (req, res) => {
   try {
-    const { id } = req.params;
-    const deletedWord = await Vocab.findOneAndDelete({ _id: id, user: req.user.id });
-    
-    if (!deletedWord) {
-      return res.status(404).json({ message: 'Palabra no encontrada o no autorizada' });
-    }
-    res.status(200).json({ message: 'Palabra borrada correctamente' });
-  } catch (error) {
-    res.status(500).json({ message: 'Error al borrar', error: error.message });
-  }
-};
+    const palabra = await Vocab.findById(req.params.id)
 
-module.exports = { createVocab, getVocabs, updateVocab, deleteVocab };
+    if (!palabra) {
+      return res.status(404).json({ message: 'Palabra no encontrada' })
+    }
+
+    // Asegurar que el usuario logueado es el dueño
+    if (palabra.user.toString() !== req.user.id) {
+      return res.status(401).json({ message: 'Usuario no autorizado' })
+    }
+
+    await palabra.deleteOne()
+    res.status(200).json({ id: req.params.id })
+  } catch (error) {
+    res.status(500).json({ message: 'Error al eliminar la palabra' })
+  }
+}
+
+// @desc    Registrar un acierto o fallo en el minijuego
+// @route   PUT /api/vocab/:id/intento
+// @access  Privado
+const registrarIntento = async (req, res) => {
+  try {
+    const palabra = await Vocab.findById(req.params.id)
+
+    if (!palabra) {
+      return res.status(404).json({ message: 'Palabra no encontrada' })
+    }
+
+    if (palabra.user.toString() !== req.user.id) {
+      return res.status(401).json({ message: 'Usuario no autorizado' })
+    }
+
+    const { resultado } = req.body
+
+    if (resultado === 'acierto') {
+      palabra.aciertos += 1
+    } else if (resultado === 'fallo') {
+      palabra.fallos += 1
+    } else {
+      return res.status(400).json({ message: 'Resultado no válido' })
+    }
+
+    const palabraActualizada = await palabra.save()
+    res.status(200).json(palabraActualizada)
+    
+  } catch (error) {
+    res.status(500).json({ message: 'Error al registrar el intento', error: error.message })
+  }
+}
+
+module.exports = {
+  getVocab,
+  setVocab,
+  deleteVocab,
+  registrarIntento
+}

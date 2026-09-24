@@ -1,12 +1,15 @@
-const express = require('express');
-const router = express.Router();
-const { createVocab, getVocabs, updateVocab, deleteVocab } = require('../controllers/vocabController');
-const auth = require('../middlewares/auth'); // Importamos el portero
+const express = require('express')
+const router = express.Router()
+const { getVocab, setVocab, deleteVocab, registrarIntento } = require('../controllers/vocabController')
+const { protect } = require('../middleware/authMiddleware')
 
-// Todas estas rutas ahora requieren pasar por "auth" primero
-router.post('/', auth, createVocab);
-router.get('/', auth, getVocabs);
-router.put('/:id', auth, updateVocab);
-router.delete('/:id', auth, deleteVocab);
+// Rutas básicas (Obtener y Crear)
+router.route('/').get(protect, getVocab).post(protect, setVocab)
 
-module.exports = router;
+// Ruta para eliminar
+router.route('/:id').delete(protect, deleteVocab)
+
+// NUEVA RUTA: Para el minijuego (Aciertos y fallos)
+router.route('/:id/intento').put(protect, registrarIntento)
+
+module.exports = router
