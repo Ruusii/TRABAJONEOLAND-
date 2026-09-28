@@ -1,4 +1,5 @@
 const Vocab = require('../models/Vocab')
+const User = require('../models/User')
 
 // @desc    Obtener vocabulario del usuario
 // @route   GET /api/vocab
@@ -45,7 +46,6 @@ const deleteVocab = async (req, res) => {
       return res.status(404).json({ message: 'Palabra no encontrada' })
     }
 
-    // Asegurar que el usuario logueado es el dueño
     if (palabra.user.toString() !== req.user.id) {
       return res.status(401).json({ message: 'Usuario no autorizado' })
     }
@@ -90,9 +90,62 @@ const registrarIntento = async (req, res) => {
   }
 }
 
+// @desc    Calcular y actualizar la racha diaria del usuario
+// @route   POST /api/vocab/racha
+// @access  Privado
+const sincronizarRacha = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id)
+    if (!user) {
+      return res.status(404).json({ message: 'Usuario no encontrado' })
+    }
+
+    const hoy = new Date()
+    hoy.setHours(0, 0, 0, 0)
+
+    let recompensaHoy = false
+
+    if (!user.ultimaConexion) {
+      user.rachaDias = 1
+      user.ultimaConexion = new Date()
+      recompensaHoy = true
+    } else {
+      const ultima = new Date(user.ultimaConexion)
+      ultima.setHours(0, 0, 0, 0)
+
+      const diferenciaDias = Math.round((hoy - ultima) / (1000 * 60 * 60 * 24))
+
+      if (diferenciaDias === 1) {
+        // Entró ayer: sumamos 1 día a la racha
+        user.rachaDias = (user.rachaDias || 0) + 1
+        user.ultimaConexion = new Date()
+        recompensaHoy = true
+      } else if (diferenciaDias > 1) {
+        // Perdió la racha: vuelve a empezar en 1
+        user.rachaDias = 1
+        user.ultimaConexion = new Date()
+        recompensaHoy = true
+      }
+      // Si diferenciaDias === 0, ya se conectó hoy y mantenemos su racha
+    }
+
+    await user.save()
+
+    res.status(200).json({
+      name: user.name,
+      rachaDias: user.rachaDias || 1,
+      ultimaConexion: user.ultimaConexion,
+      recompensaHoy
+    })
+  } catch (error) {
+    res.status(500).json({ message: 'Error al sincronizar racha', error: error.message })
+  }
+}
+
 module.exports = {
   getVocab,
   setVocab,
   deleteVocab,
-  registrarIntento
+  registrarIntento,
+  sincronizarRacha
 }
