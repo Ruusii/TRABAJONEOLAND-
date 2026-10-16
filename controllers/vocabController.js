@@ -2,8 +2,6 @@ const Vocab = require('../models/Vocab')
 const User = require('../models/User')
 
 // @desc    Obtener vocabulario del usuario
-// @route   GET /api/vocab
-// @access  Privado
 const getVocab = async (req, res) => {
   try {
     const vocabulario = await Vocab.find({ user: req.user.id })
@@ -14,8 +12,6 @@ const getVocab = async (req, res) => {
 }
 
 // @desc    Añadir nueva palabra
-// @route   POST /api/vocab
-// @access  Privado
 const setVocab = async (req, res) => {
   try {
     if (!req.body.norwegian || !req.body.spanish) {
@@ -35,9 +31,36 @@ const setVocab = async (req, res) => {
   }
 }
 
-// @desc    Eliminar palabra
-// @route   DELETE /api/vocab/:id
+// NUEVO: @desc    Actualizar palabra (Editar)
+// @route   PUT /api/vocab/:id
 // @access  Privado
+const updateVocab = async (req, res) => {
+  try {
+    const palabra = await Vocab.findById(req.params.id)
+
+    if (!palabra) {
+      return res.status(404).json({ message: 'Palabra no encontrada' })
+    }
+
+    // Asegurar que el usuario logueado es el dueño
+    if (palabra.user.toString() !== req.user.id) {
+      return res.status(401).json({ message: 'Usuario no autorizado' })
+    }
+
+    // Actualizamos la palabra manteniendo sus estadísticas intactas
+    const palabraActualizada = await Vocab.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true }
+    )
+
+    res.status(200).json(palabraActualizada)
+  } catch (error) {
+    res.status(500).json({ message: 'Error al actualizar la palabra' })
+  }
+}
+
+// @desc    Eliminar palabra
 const deleteVocab = async (req, res) => {
   try {
     const palabra = await Vocab.findById(req.params.id)
@@ -57,52 +80,32 @@ const deleteVocab = async (req, res) => {
   }
 }
 
-// @desc    Registrar un acierto o fallo en el minijuego
-// @route   PUT /api/vocab/:id/intento
-// @access  Privado
+// @desc    Registrar un acierto o fallo
 const registrarIntento = async (req, res) => {
   try {
     const palabra = await Vocab.findById(req.params.id)
-
-    if (!palabra) {
-      return res.status(404).json({ message: 'Palabra no encontrada' })
-    }
-
-    if (palabra.user.toString() !== req.user.id) {
-      return res.status(401).json({ message: 'Usuario no autorizado' })
-    }
+    if (!palabra) return res.status(404).json({ message: 'Palabra no encontrada' })
+    if (palabra.user.toString() !== req.user.id) return res.status(401).json({ message: 'No autorizado' })
 
     const { resultado } = req.body
-
-    if (resultado === 'acierto') {
-      palabra.aciertos += 1
-    } else if (resultado === 'fallo') {
-      palabra.fallos += 1
-    } else {
-      return res.status(400).json({ message: 'Resultado no válido' })
-    }
-
+    if (resultado === 'acierto') palabra.aciertos += 1
+    else if (resultado === 'fallo') palabra.fallos += 1
+    
     const palabraActualizada = await palabra.save()
     res.status(200).json(palabraActualizada)
-    
   } catch (error) {
-    res.status(500).json({ message: 'Error al registrar el intento', error: error.message })
+    res.status(500).json({ message: 'Error al registrar intento' })
   }
 }
 
-// @desc    Calcular y actualizar la racha diaria del usuario
-// @route   POST /api/vocab/racha
-// @access  Privado
+// @desc    Sincronizar racha diaria
 const sincronizarRacha = async (req, res) => {
   try {
     const user = await User.findById(req.user.id)
-    if (!user) {
-      return res.status(404).json({ message: 'Usuario no encontrado' })
-    }
+    if (!user) return res.status(404).json({ message: 'Usuario no encontrado' })
 
     const hoy = new Date()
     hoy.setHours(0, 0, 0, 0)
-
     let recompensaHoy = false
 
     if (!user.ultimaConexion) {
@@ -112,39 +115,30 @@ const sincronizarRacha = async (req, res) => {
     } else {
       const ultima = new Date(user.ultimaConexion)
       ultima.setHours(0, 0, 0, 0)
-
       const diferenciaDias = Math.round((hoy - ultima) / (1000 * 60 * 60 * 24))
 
       if (diferenciaDias === 1) {
-        // Entró ayer: sumamos 1 día a la racha
         user.rachaDias = (user.rachaDias || 0) + 1
         user.ultimaConexion = new Date()
         recompensaHoy = true
       } else if (diferenciaDias > 1) {
-        // Perdió la racha: vuelve a empezar en 1
         user.rachaDias = 1
         user.ultimaConexion = new Date()
         recompensaHoy = true
       }
-      // Si diferenciaDias === 0, ya se conectó hoy y mantenemos su racha
     }
 
     await user.save()
-
-    res.status(200).json({
-      name: user.name,
-      rachaDias: user.rachaDias || 1,
-      ultimaConexion: user.ultimaConexion,
-      recompensaHoy
-    })
+    res.status(200).json({ rachaDias: user.rachaDias || 1, recompensaHoy })
   } catch (error) {
-    res.status(500).json({ message: 'Error al sincronizar racha', error: error.message })
+    res.status(500).json({ message: 'Error racha' })
   }
 }
 
 module.exports = {
   getVocab,
   setVocab,
+  updateVocab, // <-- Añadido al export
   deleteVocab,
   registrarIntento,
   sincronizarRacha
